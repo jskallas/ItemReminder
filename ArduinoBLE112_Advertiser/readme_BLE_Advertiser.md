@@ -3,7 +3,7 @@
 |BLE112        | Arduino Uno / Nano  | Comment |
 |--------------|---------------------|---------|
 |BLE112 P0_4   |Arduino Digital Pin 2|         |
-|BLE112 P0_5   |Arduino Digital Pin 2|Fix me   |
+|BLE112 P0_5   |Arduino Digital Pin 3|         |
 |GND           |GND                  |         |
 |3.3 V         |3.3 V                |(so you can power both modules via Arduinos USB-Port)|
 |BLE_RESET     |Arduino Digital Pin 6|         |
