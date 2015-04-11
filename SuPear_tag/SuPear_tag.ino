@@ -228,6 +228,12 @@ void setup() {
     //Setup accelerometer
     Wire.begin();
     accwrite(0x2A,0x03); // Set the motion sensor to active mode
+    
+    //Wait for the BLE init.
+    while(!bleSerialPort.available()){
+      Serial.println("Waiting for ble112 to init");
+      delay(10);
+    }
   
     Serial.print("Setup complete\n");
 }
