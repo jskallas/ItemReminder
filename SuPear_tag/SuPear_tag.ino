@@ -22,9 +22,13 @@
 #include <SoftwareSerial.h>
 #include "BGLib.h"
 
-// uncomment the following line for debug serial output
-#define DEBUG
-
+// uncomment the following lines for debug serial output
+#define BLE_DEBUG 0
+#define ACCELOMETER_DEBUG 0
+#define CSV_OUTPUT 0
+#define PROGRAM_FLOW_DEBUG 0
+#define ACCELOMETER_TRIGGER_LEVEL 3
+#define DEBUG_LED 0 
 // ================================================================
 // BLE STATE TRACKING (UNIVERSAL TO JUST ABOUT ANY BLE PROJECT)
 // ================================================================
@@ -111,7 +115,7 @@ int count = 0;
 
 const int trigger = 10; // Number of counts to put the led on
 const int limit = 30; // Count upper limit
-const int freq = 100; // Delay between each loop
+const int freq = 500; // Delay between each loop
 
 void accwrite(byte regaddress, byte data)
 {
@@ -133,47 +137,100 @@ byte accread(byte regaddress)
   return Wire.read(); 
 }
 
-byte check(void) // Values of at least 2 of 3 axises must change to make the count to grow. 
+/*
+ * Returns 0 if tag is not moving, 1 if tag is moving
+ */
+byte check(void)
 {
-  byte rvalue = 0; // return 0 if something goes wrong
+
+//Store previous values, down to 2 times
+static int8_t lastX = 0;
+static int8_t lastY = 0;
+static int8_t lastZ = 0;
+
+int8_t nowX = (int8_t) accread(0x01);
+int8_t nowY = (int8_t) accread(0x03);
+int8_t nowZ = (int8_t) accread(0x05);
+
+//High pass values, nextX-lastX = 0 if no change
+int8_t HiPassX = nowX - lastX;  
+int8_t HiPassY = nowY - lastY;
+int8_t HiPassZ = nowZ - lastZ;
+
+int16_t movement = abs(HiPassX) + abs(HiPassY) + abs(HiPassZ);
+
+lastX = nowX;
+lastY = nowY;
+lastZ = nowZ;
+ 
+#if ACCELOMETER_DEBUG
+	Serial.print("Movement: ");
+	Serial.println(movement);
+#endif
+
+byte rvalue = '0';
+  if (movement > ACCELOMETER_TRIGGER_LEVEL)
+    rvalue++;
+ 
+#if ACCELOMETER_DEBUG
+	Serial.print("rvalue: ");
+	Serial.println(rvalue);
+#endif
+
+#if CSV_OUTPUT
+  Serial.print("Last values");
+  Serial.print(lastX);
+  Serial.print("; ");
+  Serial.print(lastY);
+  Serial.print("; ");
+  Serial.print(lastZ);
+  Serial.println("; ");
   
-  if(x-accread(0x01)!=0 && y-accread(0x03)!=0 && count<=30)
-  {
-    count=count+2;
-  }
-  else if(y-accread(0x03)!=0 && z-accread(0x05)!=0 && count<=30)
-  {
-   count=count+2;
-  }
-  else if(x-accread(0x01)!=0 && z-accread(0x05)!=0 && count<=30)
-  {
-   count=count+2;
-  }
-  else
-  {
-    if(count>0)
-    {
-      count=count-1;
-    }
-    else
-    {
-      count=0;
-    }
-  }
-  if(count>=trigger)
-  {
-    rvalue = '1'; //We're moving
-  }
-  else
-  {
-    rvalue = '0'; //We're still
-  }
-  x=accread(0x01);
-  y=accread(0x03);
-  z=accread(0x05);
-  
+  Serial.print(nowX);
+  Serial.print("; ");
+  Serial.print(nowY);
+  Serial.print("; ");
+  Serial.print(nowZ);
+  Serial.println("; ");
+#endif
+
   return rvalue;
 }
+
+//Power settings
+//#include "power.h"
+//Power power_cls();
+#include <avr/wdt.h>
+#include <avr/sleep.h>
+#include <avr/power.h>
+void watchdogSetup(void)
+{
+cli();
+wdt_reset();
+/*
+WDTCSR configuration:
+WDIE = 1: Interrupt Enable
+WDE = 1 :Reset Enable
+See table for time-out variations:
+WDP3 = 0 :For 1000ms Time-out
+WDP2 = 1 :For 1000ms Time-out
+WDP1 = 1 :For 1000ms Time-out
+WDP0 = 0 :For 1000ms Time-out
+*/
+// Enter Watchdog Configuration mode:
+WDTCSR |= (1<<WDCE) | (1<<WDE);
+// Set Watchdog settings:
+WDTCSR = (1<<WDIE) | (0<<WDE) |
+(0<<WDP3) | (1<<WDP2) | (1<<WDP1) |
+(0<<WDP0);
+sei();
+}
+
+ISR(WDT_vect) // Watchdog timer interrupt.
+{
+  
+}
+
 
 // ================================================================
 // ARDUINO APPLICATION SETUP AND LOOP FUNCTIONS
@@ -234,6 +291,9 @@ void setup() {
       Serial.println("Waiting for ble112 to init");
       delay(10);
     }
+    
+    //setup watchdog
+    watchdogSetup();
   
     Serial.print("Setup complete\n");
 }
@@ -252,7 +312,7 @@ void loop() {
       lastState = inByte;
      Serial.println("Status of tag has changed"); 
     }
-    delay(freq); //TODO: Run check at fixed intervals
+    //delay(freq); //TODO: Run check at fixed intervals
 
     switch (inByte) {
     case '0':    // "Switch state to resting by sending "0" via Serial Command Window
@@ -269,14 +329,28 @@ void loop() {
       //do nothing on invalid inbyte
       break;    
     }
-
     
-
+    Serial.println("Entering sleep");
+    Serial.flush();
+    Serial.end();
+    bleSerialPort.flush();
+    bleSerialPort.end();
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);   // sleep mode is set here
+    cli();
+    sleep_enable(); 
+    sei();
+    sleep_mode();
+    sleep_disable();
+    Serial.begin(38400);
+    wdt_reset(); //Next wake up in constant interval 
+    bleSerialPort.begin(38400);
+    Serial.println("Waking up");
     // blink Arduino LED based on state:
     //  - solid = STANDBY
     //  - 1 pulse per second = ADVERTISING
     //  - 2 pulses per second = CONNECTED_SLAVE
     //  - 3 pulses per second = CONNECTED_SLAVE with encryption
+#if DEBUG_LED
     uint16_t slice = millis() % 1000;
     if (ble_state == BLE_STATE_STANDBY) {
         digitalWrite(LED_PIN, HIGH);
@@ -291,6 +365,7 @@ void loop() {
             digitalWrite(LED_PIN, slice < 100 || (slice > 200 && slice < 300) || (slice > 400 && slice < 500));
         }
     }
+#endif
 }
 
 
@@ -349,7 +424,7 @@ void onTXCommandComplete() {
 // ================================================================
 
 void my_ble_evt_system_boot(const ble_msg_system_boot_evt_t *msg) {
-    #ifdef DEBUG
+    #if BLE_DEBUG
         Serial.print("###\tsystem_boot: { ");
         Serial.print("major: "); Serial.print(msg -> major, HEX);
         Serial.print(", minor: "); Serial.print(msg -> minor, HEX);
@@ -380,7 +455,7 @@ void my_ble_evt_system_boot(const ble_msg_system_boot_evt_t *msg) {
 
 
 void my_ble_evt_connection_status(const ble_msg_connection_status_evt_t *msg) {
-    #ifdef DEBUG
+    #ifdef BLE_DEBUG
         Serial.print("###\tconnection_status: { ");
         Serial.print("connection: "); Serial.print(msg -> connection, HEX);
         Serial.print(", flags: "); Serial.print(msg -> flags, HEX);
@@ -427,7 +502,7 @@ void my_ble_evt_connection_status(const ble_msg_connection_status_evt_t *msg) {
 }
 
 void my_ble_evt_connection_disconnect(const struct ble_msg_connection_disconnected_evt_t *msg) {
-    #ifdef DEBUG
+    #ifdef BLE_DEBUG
         Serial.print("###\tconnection_disconnect: { ");
         Serial.print("connection: "); Serial.print(msg -> connection, HEX);
         Serial.print(", reason: "); Serial.print(msg -> reason, HEX);
@@ -455,7 +530,7 @@ void my_ble_evt_connection_disconnect(const struct ble_msg_connection_disconnect
 }
 
 void my_ble_evt_attributes_value(const struct ble_msg_attributes_value_evt_t *msg) {
-    #ifdef DEBUG
+    #ifdef BLE_DEBUG
         Serial.print("###\tattributes_value: { ");
         Serial.print("connection: "); Serial.print(msg -> connection, HEX);
         Serial.print(", reason: "); Serial.print(msg -> reason, HEX);
