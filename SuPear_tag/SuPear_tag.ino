@@ -259,8 +259,8 @@ void setup() {
 
     // ONLY enable these if you are using the <wakeup_pin> parameter in your firmware's hardware.xml file
     // BLE module must be woken up before sending any UART data
-    // ble112.onBeforeTXCommand = onBeforeTXCommand;
-    // ble112.onTXCommandComplete = onTXCommandComplete;
+    ble112.onBeforeTXCommand = onBeforeTXCommand;
+    ble112.onTXCommandComplete = onTXCommandComplete;
 
     // set up BGLib event handlers
     ble112.ble_evt_system_boot = my_ble_evt_system_boot;
@@ -315,7 +315,7 @@ void loop() {
     //delay(freq); //TODO: Run check at fixed intervals
 
     switch (inByte) {
-    case '0':    // "Switch state to resting by sending "0" via Serial Command Window
+    case '0':    
       ble112.ble_cmd_gap_set_adv_data(0, 0x15, adv_data_resting);
       Serial.println("Advertising, now with adv.data for resting Item-tag");
       break;
@@ -329,8 +329,10 @@ void loop() {
       //do nothing on invalid inbyte
       break;    
     }
-    
+ 
+ #if PROGRAM_FLOW_DEBUG
     Serial.println("Entering sleep");
+ #endif
     Serial.flush();
     Serial.end();
     bleSerialPort.flush();
@@ -344,7 +346,9 @@ void loop() {
     Serial.begin(38400);
     wdt_reset(); //Next wake up in constant interval 
     bleSerialPort.begin(38400);
+#if PROGRAM_FLOW_DEBUG
     Serial.println("Waking up");
+#endif
     // blink Arduino LED based on state:
     //  - solid = STANDBY
     //  - 1 pulse per second = ADVERTISING
@@ -436,9 +440,9 @@ void my_ble_evt_system_boot(const ble_msg_system_boot_evt_t *msg) {
         Serial.println(" }");
     #endif
 
-    // set advertisement interval to 200-300ms, use all advertisement channels
+    // set advertisement interval to 800-1200ms, use all advertisement channels
     // (note min/max parameters are in units of 625 uSec)
-    ble112.ble_cmd_gap_set_adv_parameters(320, 480, 7);
+    ble112.ble_cmd_gap_set_adv_parameters(1280, 1920, 7);
     while (ble112.checkActivity(1000));
 
     // set custom advertisement data
