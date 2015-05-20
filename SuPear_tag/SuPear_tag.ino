@@ -83,16 +83,17 @@ uint8_t ble_bonding = 0xFF; // 0xFF = no bonding, otherwise = bonding handle
 // If not, then you may need to change the pin assignments and/or
 // GATT handles to match your firmware.
 
-#define LED_PIN         13  // Arduino Uno LED pin
-#define BLE_WAKEUP_PIN  5   // BLE wake-up pin
+#define LED_PIN         A2   // LED2
+#define LED_PIN         A1  // TAG LED pin
+#define BLE_WAKEUP_PIN  7   // BLE wake-up pin
 #define BLE_RESET_PIN   6   // BLE reset pin (active-low)
+#define CS              10
 
 #define GATT_HANDLE_C_RX_DATA   17  // 0x11, supports "write" operation
 #define GATT_HANDLE_C_TX_DATA   20  // 0x14, supports "read" and "indicate" operations
 
 // use SoftwareSerial on pins D2/D3 for RX/TX (Arduino side)
-SoftwareSerial bleSerialPort(2, 3);
-
+SoftwareSerial bleSerialPort(4, 5);
 // create BGLib object:
 //  - use SoftwareSerial por for module comms
 //  - use nothing for passthrough comms (0 = null pointer)
@@ -104,37 +105,40 @@ BGLib ble112((HardwareSerial *)&bleSerialPort, 0, 1);
 // ================================================================
 // Motion Sensor SETUP AND LOOP FUNCTIONS
 // ================================================================
-#include <Wire.h>
-#define acc 0x1D
+#define OUT_X_MSB 0x01
+#define OUT_Y_MSB 0x03
+#define OUT_Z_MSB 0x05
+#define WHO_AM_I  0x0D
 
 byte x=0x00; // Initializing x acceleration
 byte y=0x00; // Initializing y acceleration
 byte z=0x00; // Initializing z acceleration
 byte inByte = 0x00; // return value of movement state.
-int count = 0;
 
-const int trigger = 10; // Number of counts to put the led on
-const int limit = 30; // Count upper limit
-const int freq = 500; // Delay between each loop
+#include <SPI.h>
 
 void accwrite(byte regaddress, byte data)
 {
-  Wire.beginTransmission(acc);
-  Wire.write(regaddress);
-  Wire.write(data);
-  Wire.endTransmission();
+
+  //select the IC
+  digitalWrite(CS, LOW);
+  SPI.transfer((regaddress & 0x7F) | 0x80); //Set the first bit HIGH
+  SPI.transfer(regaddress & 0x80); //Write the most significant bit of address
+  SPI.transfer(data); //Write data
+  digitalWrite(CS, HIGH); //Deselect 
+
 }
 
 byte accread(byte regaddress)
 {
-  Wire.beginTransmission(acc);
-  Wire.write(regaddress);
-  Wire.endTransmission(false);
-  Wire.requestFrom(acc,1);
-  while(!Wire.available())
-  {
-  }
-  return Wire.read(); 
+  byte data = 0;
+  //select the IC
+  digitalWrite(CS, LOW);
+  SPI.transfer(regaddress & 0x7F); //Set the first bit LOW
+  SPI.transfer(regaddress & 0x80); //Write the most significant bit of address
+  data = SPI.transfer(0x00); //Write dummy data, receive value
+  digitalWrite(CS, HIGH); //Deselect  IC
+  return data;
 }
 
 /*
@@ -283,19 +287,26 @@ void setup() {
     //ble112.ble_cmd_gap_set_mode(BGLIB_GAP_GENERAL_DISCOVERABLE, BGLIB_GAP_UNDIRECTED_CONNECTABLE);
     
     //Setup accelerometer
-    Wire.begin();
-    accwrite(0x2A,0x03); // Set the motion sensor to active mode
+    SPI.begin();
+    SPI.setBitOrder(MSBFIRST);
+    SPI.setClockDivider(SPI_CLOCK_DIV128);
+    SPI.setDataMode(SPI_MODE0);
+    accwrite(0x2A,0x3D); // Set the motion sensor to active mode
     
     //Wait for the BLE init.
     while(!bleSerialPort.available()){
+      #if PROGRAM_FLOW_DEBUG
       Serial.println("Waiting for ble112 to init");
-      delay(10);
+      delay(100);
+      #endif
     }
     
     //setup watchdog
     watchdogSetup();
-  
+
+    #if PROGRAM_FLOW_DEBUG  
     Serial.print("Setup complete\n");
+    #endif
 }
 
 // main application loop
@@ -310,19 +321,26 @@ void loop() {
     }
     else {
       lastState = inByte;
-     Serial.println("Status of tag has changed"); 
+
+      #if PROGRAM_FLOW_DEBUG
+      Serial.println("Status of tag has changed"); 
+      #endif
     }
     //delay(freq); //TODO: Run check at fixed intervals
 
     switch (inByte) {
     case '0':    
       ble112.ble_cmd_gap_set_adv_data(0, 0x15, adv_data_resting);
+      #if PROGRAM_FLOW_DEBUG
       Serial.println("Advertising, now with adv.data for resting Item-tag");
+      #endif
       break;
       
      case '1':
       ble112.ble_cmd_gap_set_adv_data(0, 0x15, adv_data_moving);
+      #if PROGRAM_FLOW_DEBUG
       Serial.println("Advertising, now with adv.data for moving Item-tag");
+      #endif
       break;
       
      default:
@@ -330,11 +348,14 @@ void loop() {
       break;    
     }
  
- #if PROGRAM_FLOW_DEBUG
+    #if PROGRAM_FLOW_DEBUG
     Serial.println("Entering sleep");
- #endif
+    #endif
+    //Flush and end serial communication in case there is some other debug option on 
     Serial.flush();
     Serial.end();
+
+
     bleSerialPort.flush();
     bleSerialPort.end();
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);   // sleep mode is set here
@@ -343,18 +364,23 @@ void loop() {
     sei();
     sleep_mode();
     sleep_disable();
+
+    //Always start serial comms in case there is some debug option on
     Serial.begin(38400);
+
     wdt_reset(); //Next wake up in constant interval 
     bleSerialPort.begin(38400);
-#if PROGRAM_FLOW_DEBUG
+
+    #if PROGRAM_FLOW_DEBUG
     Serial.println("Waking up");
-#endif
+    #endif
+
     // blink Arduino LED based on state:
     //  - solid = STANDBY
     //  - 1 pulse per second = ADVERTISING
     //  - 2 pulses per second = CONNECTED_SLAVE
     //  - 3 pulses per second = CONNECTED_SLAVE with encryption
-#if DEBUG_LED
+    #if DEBUG_LED
     uint16_t slice = millis() % 1000;
     if (ble_state == BLE_STATE_STANDBY) {
         digitalWrite(LED_PIN, HIGH);
@@ -369,7 +395,7 @@ void loop() {
             digitalWrite(LED_PIN, slice < 100 || (slice > 200 && slice < 300) || (slice > 400 && slice < 500));
         }
     }
-#endif
+    #endif
 }
 
 
