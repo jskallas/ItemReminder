@@ -48,12 +48,13 @@ import sys, optparse, serial, struct, time, datetime, re, signal
 
 options = []
 filter_uuid = []
-filter_mac = [0x0007800596F2, 0x0007800596E8, 0x0007807F514C]
+filter_mac = [[0x00,0x07,0x80, 0x05, 0x96, 0xF2], [0x00, 0x07, 0x80, 0x05, 0x96, 0xE8], [0x00, 0x07, 0x80, 0x05, 0x96, 0xF3],[0x00, 0x07, 0x80, 0x7F, 0x51, 0x4C]]
 filter_rssi = 0
 
     
 def scan(sharedList):
     global options, filter_uuid, filter_mac, filter_rssi
+    print "Scan started"
 
     class MyParser(optparse.OptionParser):
         def format_epilog(self, formatter=None):
@@ -261,7 +262,7 @@ Takes sharedList as a parameters, writes '1' if tag in index is seen, '0' if not
     ble_cmd_gap_discover(ser, 1)
     timerList = []
     for ii in range (0, len(sharedList)):
-         timerList[ii] = 0
+         timerList.append(0)
     while (1):
         # catch all incoming data
         
@@ -273,7 +274,7 @@ Takes sharedList as a parameters, writes '1' if tag in index is seen, '0' if not
         # mark tags not seen in 1000 program cycles as missing
         for ii in range (0, len(sharedList)):
             timerList[ii] = timerList[ii] + 1
-            if timerList[ii] > 1000:
+            if timerList[ii] > 300: ##delay in one-hundreths of a second before tag is considered inactive
                 sharedList[ii] = 0
 
 
@@ -294,7 +295,7 @@ def ble_cmd_gap_discover(p, mode):
 # define basic BGAPI parser
 bgapi_rx_buffer = []
 bgapi_rx_expected_length = 0
-def bgapi_parse(b, sharedList):
+def bgapi_parse(b, sharedList, timerList):
     global bgapi_rx_buffer, bgapi_rx_expected_length
     #Team SuPear globals
     global led_status, led_counter, RED_LED, GREEN_LED, YELLOW_LED
@@ -373,17 +374,20 @@ def bgapi_parse(b, sharedList):
                                     # SuPear tag - you should probably ignore this unless you're in our team
                                     ad_services.append(this_field[5:21]) #128-bit UUID
                                     #this_field[5:21] has the UUID. Check if it's UUID of moving or still tag and turn on green or YELLOW LED accordingly
+                                    #print "Attempting to ID a tag." + str(sender[::-1])
                                     #identify the tag
                                     for ii in range(0, len(sharedList)):
-                                        if sharedList[ii] == sender[:-len(mac) - 1:-1]:
-                                          if this_field[5] == 0: #With proto 0 only first value is needed to check, 0 = Moving, 0xE4 = Still
+                                        #print "Comparing to " + str(filter_mac[ii])
+                                        if filter_mac[ii] == sender[::-1]:
+                                          #print "match found"
+                                          if this_field[1] == 0: #With proto 0 only first value is needed to check, 0 = Moving, 0xE4 = Still
                                               sharedList[ii] = 1
                                               timerList[ii] = 0
-                                          elif this_field[5] == 0xE4:
+                                          elif this_field[1] == 0xE4:
                                               sharedList[ii] = 2
                                               timerList[ii] = 0
                                     #print "128 bit UUID found in a SuPear tag"
-                                    print "%s" % this_field[5:21]
+                                    #print "%s" % this_field[5:21]
                                     #print ''.join('%02X' % ee for ee in ad_services[0])
 
         bgapi_rx_buffer = []
