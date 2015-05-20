@@ -1,10 +1,10 @@
+#!/usr/bin/env python
+
 '''
 Created on 20.4.2015
 
 @author: Juha Kallas
 '''
-
-#!/usr/bin/env python
 
 import reader
 
@@ -57,17 +57,17 @@ class ItemReminderGUI:
         gtk.main_quit()        
         
     def start_t(self):
-        self.g = gobject.timeout_add(10, self.counter)    
+        self.g = gobject.timeout_add(1000, self.counter)    
      
     def counter(self):
         
-        self.x = random.randint(0,2)
-        self.y = random.randint(0,2)
-        self.z = random.randint(0,2)
+        #self.x = random.randint(0,2)
+        #self.y = random.randint(0,2)
+        #self.z = random.randint(0,2)
         
-        #self.x = sharedList[0]
-        #self.y = sharedList[1]
-        #self.z = sharedList[2]
+        self.x = sharedList[0]
+        self.y = sharedList[1]
+        self.z = sharedList[2]
         
         if self.x == 0:
             self.labelKeys.set_markup('<span size="24000" foreground="#FFFFFF">Keys</span>')
@@ -113,14 +113,14 @@ if __name__ == "__main__":
     print_thread.daemon = True
     print_thread.start()
     
+    gtk.gdk.threads_init()
     ItemReminder = ItemReminderGUI()
-    #ItemReminder.start_t()
-    
-    gui_thread = threading.Thread(target=gtk.main, args = ())
-    gui_thread.daemon = True
-    gui_thread.start()
+    ItemReminder.start_t()
      
     print "runnin'"
     while(1):
         time.sleep(0.01)
+        gtk.threads_enter()
+        gtk.main()
+        gtk.threads_leave()
     print "quittin'"
