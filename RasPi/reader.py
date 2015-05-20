@@ -4,16 +4,14 @@ import Queue
 import threading
 import urllib2
 import time
+import scanner
 
 from os import listdir
 from os.path import isfile, join
 
 def scan_loop(sharedList):
-	targetDir = "./target"
-	while(1):
-		for i in range (0,3):
-			sharedList[i] = sharedList[i]+i
-		time.sleep(1)
+	scanner.scan
+		
 
 
 def print_loop(sharedList): 
