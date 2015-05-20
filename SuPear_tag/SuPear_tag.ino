@@ -95,7 +95,7 @@ BGLib ble112((HardwareSerial *)&bleSerialPort, 0, 1);
 #define OUT_Y_MSB 0x03
 #define OUT_Z_MSB 0x05
 #define WHO_AM_I  0x0D
-#define WHO_AM_I_VALUE 0xA6
+#define WHO_AM_I_VALUE 0x6A
 #define CFG_REG_ADDRESS 0x2A
 #define CFG_REG_VALUE 0x3D
 byte x=0x00; // Initializing x acceleration
