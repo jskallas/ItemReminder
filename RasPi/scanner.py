@@ -381,10 +381,10 @@ def bgapi_parse(b, sharedList, timerList):
                                         if filter_mac[ii] == sender[::-1]:
                                           #print "match found"
                                           if this_field[1] == 0: #With proto 0 only first value is needed to check, 0 = Moving, 0xE4 = Still
-                                              sharedList[ii] = 1
+                                              sharedList[ii] = 2
                                               timerList[ii] = 0
                                           elif this_field[1] == 0xE4:
-                                              sharedList[ii] = 2
+                                              sharedList[ii] = 1
                                               timerList[ii] = 0
                                     #print "128 bit UUID found in a SuPear tag"
                                     #print "%s" % this_field[5:21]
