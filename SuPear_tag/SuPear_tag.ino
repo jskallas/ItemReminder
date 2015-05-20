@@ -94,6 +94,8 @@ uint8_t ble_bonding = 0xFF; // 0xFF = no bonding, otherwise = bonding handle
 
 // use SoftwareSerial on pins D2/D3 for RX/TX (Arduino side)
 SoftwareSerial bleSerialPort(4, 5);
+SoftwareSerial debugSerialPort(9, A0); // only in the debugtag 
+SoftwareSerial& debugOutput = debugSerialPort;
 // create BGLib object:
 //  - use SoftwareSerial por for module comms
 //  - use nothing for passthrough comms (0 = null pointer)
@@ -168,8 +170,8 @@ lastY = nowY;
 lastZ = nowZ;
  
 #if ACCELOMETER_DEBUG
-	Serial.print("Movement: ");
-	Serial.println(movement);
+	debugOutput.print("Movement: ");
+	debugOutput.println(movement);
 #endif
 
 byte rvalue = '0';
@@ -177,25 +179,25 @@ byte rvalue = '0';
     rvalue++;
  
 #if ACCELOMETER_DEBUG
-	Serial.print("rvalue: ");
-	Serial.println(rvalue);
+	debugOutput.print("rvalue: ");
+	debugOutput.println(rvalue);
 #endif
 
 #if CSV_OUTPUT
-  Serial.print("Last values");
-  Serial.print(lastX);
-  Serial.print("; ");
-  Serial.print(lastY);
-  Serial.print("; ");
-  Serial.print(lastZ);
-  Serial.println("; ");
+  debugOutput.print("Last values");
+  debugOutput.print(lastX);
+  debugOutput.print("; ");
+  debugOutput.print(lastY);
+  debugOutput.print("; ");
+  debugOutput.print(lastZ);
+  debugOutput.println("; ");
   
-  Serial.print(nowX);
-  Serial.print("; ");
-  Serial.print(nowY);
-  Serial.print("; ");
-  Serial.print(nowZ);
-  Serial.println("; ");
+  debugOutput.print(nowX);
+  debugOutput.print("; ");
+  debugOutput.print(nowY);
+  debugOutput.print("; ");
+  debugOutput.print(nowZ);
+  debugOutput.println("; ");
 #endif
 
   return rvalue;
@@ -274,8 +276,7 @@ void setup() {
 
     // open Arduino USB serial (and wait, if we're using Leonardo)
     // use 38400 since it works at 8MHz as well as 16MHz
-    Serial.begin(38400);
-    while (!Serial);
+    debugOutput.begin(38400);
 
     // open BLE software serial port
     bleSerialPort.begin(38400);
@@ -296,7 +297,7 @@ void setup() {
     //Wait for the BLE init.
     while(!bleSerialPort.available()){
       #if PROGRAM_FLOW_DEBUG
-      Serial.println("Waiting for ble112 to init");
+      debugOutput.println("Waiting for ble112 to init");
       delay(100);
       #endif
     }
@@ -305,7 +306,7 @@ void setup() {
     watchdogSetup();
 
     #if PROGRAM_FLOW_DEBUG  
-    Serial.print("Setup complete\n");
+    debugOutput.print("Setup complete\n");
     #endif
 }
 
@@ -323,7 +324,7 @@ void loop() {
       lastState = inByte;
 
       #if PROGRAM_FLOW_DEBUG
-      Serial.println("Status of tag has changed"); 
+      debugOutput.println("Status of tag has changed"); 
       #endif
     }
     //delay(freq); //TODO: Run check at fixed intervals
@@ -332,14 +333,14 @@ void loop() {
     case '0':    
       ble112.ble_cmd_gap_set_adv_data(0, 0x15, adv_data_resting);
       #if PROGRAM_FLOW_DEBUG
-      Serial.println("Advertising, now with adv.data for resting Item-tag");
+      debugOutput.println("Advertising, now with adv.data for resting Item-tag");
       #endif
       break;
       
      case '1':
       ble112.ble_cmd_gap_set_adv_data(0, 0x15, adv_data_moving);
       #if PROGRAM_FLOW_DEBUG
-      Serial.println("Advertising, now with adv.data for moving Item-tag");
+      debugOutput.println("Advertising, now with adv.data for moving Item-tag");
       #endif
       break;
       
@@ -349,11 +350,11 @@ void loop() {
     }
  
     #if PROGRAM_FLOW_DEBUG
-    Serial.println("Entering sleep");
+    debugOutput.println("Entering sleep");
     #endif
     //Flush and end serial communication in case there is some other debug option on 
-    Serial.flush();
-    Serial.end();
+    debugOutput.flush();
+    debugOutput.end();
 
 
     bleSerialPort.flush();
@@ -366,13 +367,13 @@ void loop() {
     sleep_disable();
 
     //Always start serial comms in case there is some debug option on
-    Serial.begin(38400);
+    debugOutput.begin(38400);
 
     wdt_reset(); //Next wake up in constant interval 
     bleSerialPort.begin(38400);
 
     #if PROGRAM_FLOW_DEBUG
-    Serial.println("Waking up");
+    debugOutput.println("Waking up");
     #endif
 
     // blink Arduino LED based on state:
@@ -384,10 +385,10 @@ void loop() {
     uint16_t slice = millis() % 1000;
     if (ble_state == BLE_STATE_STANDBY) {
         digitalWrite(LED_PIN, HIGH);
-        //Serial.print("STANDBY");
+        //debugOutput.print("STANDBY");
     } else if (ble_state == BLE_STATE_ADVERTISING) {
         digitalWrite(LED_PIN, slice < 100);
-        // Serial.print("ADVERTISING");
+        // debugOutput.print("ADVERTISING");
     } else if (ble_state == BLE_STATE_CONNECTED_SLAVE) {
         if (!ble_encrypted) {
             digitalWrite(LED_PIN, slice < 100 || (slice > 200 && slice < 300));
@@ -455,15 +456,15 @@ void onTXCommandComplete() {
 
 void my_ble_evt_system_boot(const ble_msg_system_boot_evt_t *msg) {
     #if BLE_DEBUG
-        Serial.print("###\tsystem_boot: { ");
-        Serial.print("major: "); Serial.print(msg -> major, HEX);
-        Serial.print(", minor: "); Serial.print(msg -> minor, HEX);
-        Serial.print(", patch: "); Serial.print(msg -> patch, HEX);
-        Serial.print(", build: "); Serial.print(msg -> build, HEX);
-        Serial.print(", ll_version: "); Serial.print(msg -> ll_version, HEX);
-        Serial.print(", protocol_version: "); Serial.print(msg -> protocol_version, HEX);
-        Serial.print(", hw: "); Serial.print(msg -> hw, HEX);
-        Serial.println(" }");
+        debugOutput.print("###\tsystem_boot: { ");
+        debugOutput.print("major: "); debugOutput.print(msg -> major, HEX);
+        debugOutput.print(", minor: "); debugOutput.print(msg -> minor, HEX);
+        debugOutput.print(", patch: "); debugOutput.print(msg -> patch, HEX);
+        debugOutput.print(", build: "); debugOutput.print(msg -> build, HEX);
+        debugOutput.print(", ll_version: "); debugOutput.print(msg -> ll_version, HEX);
+        debugOutput.print(", protocol_version: "); debugOutput.print(msg -> protocol_version, HEX);
+        debugOutput.print(", hw: "); debugOutput.print(msg -> hw, HEX);
+        debugOutput.println(" }");
     #endif
 
     // set advertisement interval to 800-1200ms, use all advertisement channels
@@ -486,21 +487,21 @@ void my_ble_evt_system_boot(const ble_msg_system_boot_evt_t *msg) {
 
 void my_ble_evt_connection_status(const ble_msg_connection_status_evt_t *msg) {
     #ifdef BLE_DEBUG
-        Serial.print("###\tconnection_status: { ");
-        Serial.print("connection: "); Serial.print(msg -> connection, HEX);
-        Serial.print(", flags: "); Serial.print(msg -> flags, HEX);
-        Serial.print(", address: ");
+        debugOutput.print("###\tconnection_status: { ");
+        debugOutput.print("connection: "); debugOutput.print(msg -> connection, HEX);
+        debugOutput.print(", flags: "); debugOutput.print(msg -> flags, HEX);
+        debugOutput.print(", address: ");
         // this is a "bd_addr" data type, which is a 6-byte uint8_t array
         for (uint8_t i = 0; i < 6; i++) {
-            if (msg -> address.addr[i] < 16) Serial.write('0');
-            Serial.print(msg -> address.addr[i], HEX);
+            if (msg -> address.addr[i] < 16) debugOutput.write('0');
+            debugOutput.print(msg -> address.addr[i], HEX);
         }
-        Serial.print(", address_type: "); Serial.print(msg -> address_type, HEX);
-        Serial.print(", conn_interval: "); Serial.print(msg -> conn_interval, HEX);
-        Serial.print(", timeout: "); Serial.print(msg -> timeout, HEX);
-        Serial.print(", latency: "); Serial.print(msg -> latency, HEX);
-        Serial.print(", bonding: "); Serial.print(msg -> bonding, HEX);
-        Serial.println(" }");
+        debugOutput.print(", address_type: "); debugOutput.print(msg -> address_type, HEX);
+        debugOutput.print(", conn_interval: "); debugOutput.print(msg -> conn_interval, HEX);
+        debugOutput.print(", timeout: "); debugOutput.print(msg -> timeout, HEX);
+        debugOutput.print(", latency: "); debugOutput.print(msg -> latency, HEX);
+        debugOutput.print(", bonding: "); debugOutput.print(msg -> bonding, HEX);
+        debugOutput.println(" }");
     #endif
 
     // "flags" bit description:
@@ -533,10 +534,10 @@ void my_ble_evt_connection_status(const ble_msg_connection_status_evt_t *msg) {
 
 void my_ble_evt_connection_disconnect(const struct ble_msg_connection_disconnected_evt_t *msg) {
     #ifdef BLE_DEBUG
-        Serial.print("###\tconnection_disconnect: { ");
-        Serial.print("connection: "); Serial.print(msg -> connection, HEX);
-        Serial.print(", reason: "); Serial.print(msg -> reason, HEX);
-        Serial.println(" }");
+        debugOutput.print("###\tconnection_disconnect: { ");
+        debugOutput.print("connection: "); debugOutput.print(msg -> connection, HEX);
+        debugOutput.print(", reason: "); debugOutput.print(msg -> reason, HEX);
+        debugOutput.println(" }");
     #endif
 
     // set state to DISCONNECTED
@@ -561,19 +562,19 @@ void my_ble_evt_connection_disconnect(const struct ble_msg_connection_disconnect
 
 void my_ble_evt_attributes_value(const struct ble_msg_attributes_value_evt_t *msg) {
     #ifdef BLE_DEBUG
-        Serial.print("###\tattributes_value: { ");
-        Serial.print("connection: "); Serial.print(msg -> connection, HEX);
-        Serial.print(", reason: "); Serial.print(msg -> reason, HEX);
-        Serial.print(", handle: "); Serial.print(msg -> handle, HEX);
-        Serial.print(", offset: "); Serial.print(msg -> offset, HEX);
-        Serial.print(", value_len: "); Serial.print(msg -> value.len, HEX);
-        Serial.print(", value_data: ");
+        debugOutput.print("###\tattributes_value: { ");
+        debugOutput.print("connection: "); debugOutput.print(msg -> connection, HEX);
+        debugOutput.print(", reason: "); debugOutput.print(msg -> reason, HEX);
+        debugOutput.print(", handle: "); debugOutput.print(msg -> handle, HEX);
+        debugOutput.print(", offset: "); debugOutput.print(msg -> offset, HEX);
+        debugOutput.print(", value_len: "); debugOutput.print(msg -> value.len, HEX);
+        debugOutput.print(", value_data: ");
         // this is a "uint8array" data type, which is a length byte and a uint8_t* pointer
         for (uint8_t i = 0; i < msg -> value.len; i++) {
-            if (msg -> value.data[i] < 16) Serial.write('0');
-            Serial.print(msg -> value.data[i], HEX);
+            if (msg -> value.data[i] < 16) debugOutput.write('0');
+            debugOutput.print(msg -> value.data[i], HEX);
         }
-        Serial.println(" }");
+        debugOutput.println(" }");
     #endif
 
     // check for data written to "c_rx_data" handle
