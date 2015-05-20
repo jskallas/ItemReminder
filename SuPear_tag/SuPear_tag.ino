@@ -22,7 +22,7 @@
 #define CSV_OUTPUT 0
 #define PROGRAM_FLOW_DEBUG 1
 #define ACCELOMETER_TRIGGER_LEVEL 3
-#define DEBUG_LED 0 
+#define DEBUG_LED 1 
 // ================================================================
 // BLE STATE TRACKING (UNIVERSAL TO JUST ABOUT ANY BLE PROJECT)
 // ================================================================
@@ -70,8 +70,8 @@ uint8_t ble_bonding = 0xFF; // 0xFF = no bonding, otherwise = bonding handle
 //  - BGLib_U1A1P_38400_noflow_wake16_hwake15
 // If not, then you may need to change the pin assignments and/or
 // GATT handles to match your firmware.
-#define LED_PIN         A2   // LED2
-#define DEBUG_LED  A1   // LED2
+#define STATUS_LED_PIN         A2   // LED2
+#define DEBUG_LED_PIN  A1   // LED2
 #define BLE_WAKEUP_PIN  7   // BLE wake-up pin
 #define BLE_RESET_PIN   6   // BLE reset pin (active-low)
 #define CS              10
@@ -95,6 +95,9 @@ BGLib ble112((HardwareSerial *)&bleSerialPort, 0, 1);
 #define OUT_Y_MSB 0x03
 #define OUT_Z_MSB 0x05
 #define WHO_AM_I  0x0D
+#define WHO_AM_I_VALUE 0xA6
+#define CFG_REG_ADDRESS 0x2A
+#define CFG_REG_VALUE 0x3D
 byte x=0x00; // Initializing x acceleration
 byte y=0x00; // Initializing y acceleration
 byte z=0x00; // Initializing z acceleration
@@ -208,10 +211,6 @@ ISR(WDT_vect) // Watchdog timer interrupt.
 // ================================================================
 // initialization sequence
 void setup() {
-   
-    // initialize status LED
-    pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, LOW);
     
     // initialize BLE reset pin (active-low)
     pinMode(BLE_RESET_PIN, OUTPUT);
@@ -248,7 +247,7 @@ void setup() {
     SPI.setBitOrder(MSBFIRST);
     SPI.setClockDivider(SPI_CLOCK_DIV128);
     SPI.setDataMode(SPI_MODE0);
-    accwrite(0x2A,0x3D); // Set the motion sensor to active mode
+    accwrite(CFG_REG_ADDRESS, CFG_REG_VALUE); // Set the motion sensor to active mode
     
     //Wait for the BLE init.
     while(!bleSerialPort.available()){
@@ -265,7 +264,10 @@ void setup() {
     #endif
     
     #if DEBUG_LED
-    pinMode(DEBUG_LED, OUTPUT);
+    pinMode(DEBUG_LED_PIN, OUTPUT);
+    pinMode(STATUS_LED_PIN, OUTPUT);
+    if(WHO_AM_I_VALUE == accread(WHO_AM_I))
+        digitalWrite(DEBUG_LED_PIN, HIGH)
     #endif
 }
 // main application loop
@@ -327,7 +329,7 @@ void loop() {
     debugOutput.println("Waking up");
     #endif
     #if DEBUG_LED
-    digitalWrite(DEBUG_LED, !digitalRead(DEBUG_LED));
+      digitalWrite(STATUS_LED_PIN, !digitalRead(STATUS_LED_PIN));
     #endif
 }
 // ================================================================
