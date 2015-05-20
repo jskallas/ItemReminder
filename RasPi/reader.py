@@ -8,26 +8,27 @@ import time
 from os import listdir
 from os.path import isfile, join
 
-def scan_loop():
+def scan_loop(sharedList):
 	targetDir = "./target"
 	while(1):
-		files = [ f for f in listdir(targetDir) if isfile(join(targetDir,f)) ]
-		for f in files:
-			print f
+		for i in range (0,3):
+			sharedList[i] = sharedList[i]+i
 		time.sleep(1)
 
 
-def print_loop(): 
+def print_loop(sharedList): 
 	while(1):
-		print "loopin'"
+		for i in range (0,3):
+			print str(i) + ": " + str(sharedList[i])
 		time.sleep(1)
 
 if __name__ == '__main__':
 	print "startin'"
-	scan_thread = threading.Thread(target=scan_loop, args = ())
+	sharedList = [0,0,0]
+	scan_thread = threading.Thread(target=scan_loop, args = [sharedList])
 	scan_thread.daemon = True
 	scan_thread.start()
-	scan_thread = threading.Thread(target=print_loop, args = ())
+	scan_thread = threading.Thread(target=print_loop, args = [sharedList])
 	scan_thread.daemon = True
 	scan_thread.start()
 	print "runnin'"
